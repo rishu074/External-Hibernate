@@ -24,7 +24,7 @@ def initial_start():
         req_json['attributes']['name'],
         req_json['attributes']['identifier'],
         req_json['attributes']['uuid'],
-        req_json['attributes']['container']['environment']["HIBERNATE"]))
+        req_json['attributes']['container']['environment'].get("HIBERNATE", "true")))
 
 def proceed_this_server(
         name: str, 
@@ -45,6 +45,7 @@ def proceed_this_server(
     is_suspended = svr_stats['attributes']['is_suspended']
     is_installing = svr_stats['attributes']['is_installing']
     is_transferring = svr_stats['attributes']['is_transferring']
+    internal_id = svr_stats['attributes']['internal_id']
 
     print(node_maintenance, limits, is_suspended, is_installing, is_transferring)
     
@@ -64,8 +65,7 @@ def proceed_this_server(
     svr_resources_usage = svr_usage['attributes']['resources']
 
     print(svr_state, svr_resources_usage)
-    # Case 1: Server is stuck in starting for more than 15 minutes, kill the server
-    kill_server(identifier)
+    # Case 1: Server is stuck in starting for more than 15 minutes, kill the server)
 
 
 
@@ -76,10 +76,28 @@ def kill_server(identifier: str):
         "Authorization": f"Bearer {CLIENT_API_KEY}"
     }
 
-    req = requests.post(f"{PANEL_URL}/api/client/servers/{identifier}/power", headers=headers, data={'signal': "kill"})
-    print(req.text)
+    req = requests.post(f"{PANEL_URL}/api/client/servers/{identifier}/power", headers=headers, json={"signal": "kill"})
     return
 
+def suspend_server(internal_id: int):
+    headers = {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {API_KEY}"
+    }
+
+    req = requests.post(f"{PANEL_URL}/api/application/servers/{internal_id}/suspend", headers=headers)
+    return
+
+def force_delete_svr(internal_id: int):
+    headers = {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {API_KEY}"
+    }
+
+    req = requests.delete(f"{PANEL_URL}/api/application/servers/{internal_id}/force", headers=headers)
+    return
 
 def get_server_stats(identifier: str):
     headers = {
