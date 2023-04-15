@@ -8,16 +8,18 @@ PANEL_URL = "https://gp.dnxrg.net"
 
 def initial_start():
     logger.info("Booting up...")
+    _temp_id = "d24b218d"
+    print(get_server_stats(_temp_id))
 
-
-def get_server_stats():
+def get_server_stats(identifier: str):
     headers = {
         "Accept": "application/json",
         "Content-Type": "application/json",
         "Authorization": f"Bearer {CLIENT_API_KEY}"
     }
 
-
+    req = requests.get(f"{PANEL_URL}/api/client/servers/{identifier}", headers=headers)
+    return req.json()
 
 
 def read_servers():
