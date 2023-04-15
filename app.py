@@ -71,22 +71,23 @@ def proceed_this_server(
     if svr_state == "starting" and svr_resources_usage['uptime'] >= FIFTEEN_MINUTES_IN_MS:
         # Kill the server
         kill_server(identifier)
-        return logger.info(f"{name} - {identifier}, Killing server because it took more than 15 minutes to start!")
+        return logger.info(f"{name} - {identifier}, Killing server because it took more than 15 minutes to start, Killed server.")
     
-    # Test
-    svr_resources_usage['memory_bytes'] = (limits['memory'] * ONE_MB_BYTE) + (limits['memory'] * ONE_MB_BYTE)
-    svr_resources_usage['uptime'] = FIFTEEN_MINUTES_IN_MS + FIFTEEN_MINUTES_IN_MS
+    # Case 2: Disk overusage, forcedelete server
+    if svr_resources_usage['disk_bytes'] > (limits['disk'] * ONE_MB_BYTE):
+        force_delete_svr(internal_id)
+        return logger.info(f"{name} - {identifier}, Server was overusing disk, deleted server.")
 
-    print(svr_resources_usage['memory_bytes'], (limits['memory'] * ONE_MB_BYTE), svr_resources_usage['memory_bytes'] > (limits['memory'] * ONE_MB_BYTE))
-
-    # Case 2: Server is overusing resources after 15 minutes of runtime
+    # Case 3: Server is overusing resources after 15 minutes of runtime, suspend the server
     if svr_state == "running" and svr_resources_usage['uptime'] >= FIFTEEN_MINUTES_IN_MS and (
         svr_resources_usage['memory_bytes'] > (limits['memory'] * ONE_MB_BYTE) or
         svr_resources_usage['disk_bytes'] > (limits['disk'] * ONE_MB_BYTE) or
         svr_resources_usage['cpu_absolute'] > limits['cpu']):
-        # Suspend this
+
+        # Suspend the server
         suspend_server(internal_id)
-        return logger.info(f"{name} - {identifier}, Server is overusing resources, for more than 15 minutes!.")
+        return logger.info(f"{name} - {identifier}, Server is overusing resources, for more than 15 minutes, Suspended server.")
+    
 
 
 
