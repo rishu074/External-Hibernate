@@ -3,6 +3,7 @@ from loguru import logger
 import sys
 import multiprocessing
 import time
+import websocket
 
 
 API_KEY = "ptla_GMvlbcPve0veHKjTJl6jJajF8oPVWZPkxY3xrjJYmG0"
@@ -106,9 +107,15 @@ def proceed_this_server(
         suspend_server(internal_id)
         return logger.info(f"{name} - {identifier}, Server is overusing resources, for more than 15 minutes, Suspended server.")
     
+    svr_resources_usage['uptime'] = FIFTEEN_MINUTES_IN_MS + FIFTEEN_MINUTES_IN_MS
+    
     # Case 4: Server is offline, try again after five minutes
-    if svr_state == "offline":
-        logger.info(f"{name} - {identifier}, Server found offline, will check again after five minutes.")
+    if svr_state == "offline" or svr_resources_usage['uptime'] <= FIFTEEN_MINUTES_IN_MS:
+        if svr_resources_usage['uptime'] <= FIFTEEN_MINUTES_IN_MS:
+            logger.info(f"{name} - {identifier}, Server was just started, will check again after five minutes.")
+        else:
+            logger.info(f"{name} - {identifier}, Server found offline, will check again after five minutes.")
+
         time.sleep(10)
 
         headers = {
@@ -127,7 +134,25 @@ def proceed_this_server(
             req_json['attributes']['uuid'],
             req_json['attributes']['container']['environment'].get("HIBERNATE", "true"))
     
+    
     # Last case: Server is online, proceed with websocket things
+
+    # Get webscoket url and token
+    headers = {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {CLIENT_API_KEY}"
+    }
+
+    req = requests.get(f"{PANEL_URL}/api/client/servers/{identifier}/websocket", headers=headers)
+    ws_creds = req.json()
+    print(ws_creds)
+
+    ws = websocket.WebSocket(socket = ws_creds['data']['socket']) # type: ignore
+    # websocket.connect()
+    print(ws.status)
+
+    ws.close()
 
 
 
