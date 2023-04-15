@@ -6,10 +6,80 @@ API_KEY = "ptla_GMvlbcPve0veHKjTJl6jJajF8oPVWZPkxY3xrjJYmG0"
 CLIENT_API_KEY = "ptlc_0NJ3Mn8ryKR22zJUjv8daeWL1sOT3y2xaqXPUnzYVif"
 PANEL_URL = "https://gp.dnxrg.net"
 
+FIFTEEN_MINUTES_IN_MS = 15 * 60000
+
 def initial_start():
     logger.info("Booting up...")
-    _temp_id = "d24b218d"
-    print(get_server_stats(_temp_id))
+    _temp_id = 28
+
+    headers = {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {API_KEY}"
+    }
+    req = requests.get(f"{PANEL_URL}/api/application/servers/{_temp_id}", headers=headers)
+    req_json = req.json()
+
+    print(proceed_this_server(
+        req_json['attributes']['name'],
+        req_json['attributes']['identifier'],
+        req_json['attributes']['uuid'],
+        req_json['attributes']['container']['environment']["HIBERNATE"]))
+
+def proceed_this_server(
+        name: str, 
+        identifier: 
+        str, 
+        uuid: str, 
+        environment_hibernet: str):
+    
+    if environment_hibernet == 'false':
+        return logger.info(f"{name} - {identifier}, is not allowing hibernate!")
+    
+
+    print(name, identifier, uuid, environment_hibernet)
+    svr_stats = get_server_stats(identifier)
+
+    node_maintenance = svr_stats['attributes']['is_node_under_maintenance']
+    limits = svr_stats['attributes']['limits']
+    is_suspended = svr_stats['attributes']['is_suspended']
+    is_installing = svr_stats['attributes']['is_installing']
+    is_transferring = svr_stats['attributes']['is_transferring']
+
+    print(node_maintenance, limits, is_suspended, is_installing, is_transferring)
+    
+    if node_maintenance:
+        return logger.info(f"{name} - {identifier}, Node under maintenance!")
+    elif is_suspended:
+        return logger.info(f"{name} - {identifier}, Server suspended!")
+    elif is_installing:
+        return logger.info(f"{name} - {identifier}, Server Installing!")
+    elif is_transferring:
+        return logger.info(f"{name} - {identifier}, Server Transferring!")
+    
+
+    svr_usage = get_resource_usage(identifier)
+
+    svr_state = svr_usage['attributes']['current_state']
+    svr_resources_usage = svr_usage['attributes']['resources']
+
+    print(svr_state, svr_resources_usage)
+    # Case 1: Server is stuck in starting for more than 15 minutes, kill the server
+    kill_server(identifier)
+
+
+
+def kill_server(identifier: str):
+    headers = {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {CLIENT_API_KEY}"
+    }
+
+    req = requests.post(f"{PANEL_URL}/api/client/servers/{identifier}/power", headers=headers, data={'signal': "kill"})
+    print(req.text)
+    return
+
 
 def get_server_stats(identifier: str):
     headers = {
@@ -19,6 +89,16 @@ def get_server_stats(identifier: str):
     }
 
     req = requests.get(f"{PANEL_URL}/api/client/servers/{identifier}", headers=headers)
+    return req.json()
+
+def get_resource_usage(identifier: str):
+    headers = {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {CLIENT_API_KEY}"
+    }
+
+    req = requests.get(f"{PANEL_URL}/api/client/servers/{identifier}/resources", headers=headers)
     return req.json()
 
 
