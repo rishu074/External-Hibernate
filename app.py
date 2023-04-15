@@ -1,6 +1,9 @@
 import requests
 from loguru import logger
 import sys
+import multiprocessing
+import time
+
 
 API_KEY = "ptla_GMvlbcPve0veHKjTJl6jJajF8oPVWZPkxY3xrjJYmG0"
 CLIENT_API_KEY = "ptlc_0NJ3Mn8ryKR22zJUjv8daeWL1sOT3y2xaqXPUnzYVif"
@@ -20,6 +23,23 @@ def initial_start():
     }
     req = requests.get(f"{PANEL_URL}/api/application/servers/{_temp_id}", headers=headers)
     req_json = req.json()
+
+    # psses = []
+
+    # for i in range(5):
+    #     p1 = multiprocessing.Process(target=proceed_this_server, args=[
+    #         req_json['attributes']['name'],
+    #         req_json['attributes']['identifier'],
+    #         req_json['attributes']['uuid'],
+    #         req_json['attributes']['container']['environment'].get("HIBERNATE", "true")])
+        
+    #     p1.start()
+    #     psses.append(p1)
+    
+    # for p in psses:
+    #     p.join()
+    
+    # return
 
     print(proceed_this_server(
         req_json['attributes']['name'],
