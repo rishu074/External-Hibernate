@@ -11,6 +11,7 @@ PANEL_URL = "https://gp.dnxrg.net"
 
 FIFTEEN_MINUTES_IN_MS = 15 * 60000
 ONE_MB_BYTE = 1e+6
+FIVE_MINUTES_IN_S = 5 * 60
 
 def initial_start():
     logger.info("Booting up...")
@@ -105,6 +106,28 @@ def proceed_this_server(
         suspend_server(internal_id)
         return logger.info(f"{name} - {identifier}, Server is overusing resources, for more than 15 minutes, Suspended server.")
     
+    # Case 4: Server is offline, try again after five minutes
+    if svr_state == "offline":
+        logger.info(f"{name} - {identifier}, Server found offline, will check again after five minutes.")
+        time.sleep(10)
+
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {API_KEY}"
+        }
+
+        req = requests.get(f"{PANEL_URL}/api/application/servers/{internal_id}", headers=headers)
+        req_json = req.json()
+
+
+        return proceed_this_server(
+            req_json['attributes']['name'],
+            req_json['attributes']['identifier'],
+            req_json['attributes']['uuid'],
+            req_json['attributes']['container']['environment'].get("HIBERNATE", "true"))
+    
+    # Last case: Server is online, proceed with websocket things
 
 
 
