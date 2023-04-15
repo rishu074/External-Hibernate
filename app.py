@@ -7,6 +7,7 @@ CLIENT_API_KEY = "ptlc_0NJ3Mn8ryKR22zJUjv8daeWL1sOT3y2xaqXPUnzYVif"
 PANEL_URL = "https://gp.dnxrg.net"
 
 FIFTEEN_MINUTES_IN_MS = 15 * 60000
+ONE_MB_BYTE = 1e+6
 
 def initial_start():
     logger.info("Booting up...")
@@ -64,8 +65,29 @@ def proceed_this_server(
     svr_state = svr_usage['attributes']['current_state']
     svr_resources_usage = svr_usage['attributes']['resources']
 
-    print(svr_state, svr_resources_usage)
+    print(svr_state, svr_resources_usage, limits)
+
     # Case 1: Server is stuck in starting for more than 15 minutes, kill the server)
+    if svr_state == "starting" and svr_resources_usage['uptime'] >= FIFTEEN_MINUTES_IN_MS:
+        # Kill the server
+        kill_server(identifier)
+        return logger.info(f"{name} - {identifier}, Killing server because it took more than 15 minutes to start!")
+    
+    # Test
+    svr_resources_usage['memory_bytes'] = (limits['memory'] * ONE_MB_BYTE) + (limits['memory'] * ONE_MB_BYTE)
+    svr_resources_usage['uptime'] = FIFTEEN_MINUTES_IN_MS + FIFTEEN_MINUTES_IN_MS
+
+    print(svr_resources_usage['memory_bytes'], (limits['memory'] * ONE_MB_BYTE), svr_resources_usage['memory_bytes'] > (limits['memory'] * ONE_MB_BYTE))
+
+    # Case 2: Server is overusing resources after 15 minutes of runtime
+    if svr_state == "running" and svr_resources_usage['uptime'] >= FIFTEEN_MINUTES_IN_MS and (
+        svr_resources_usage['memory_bytes'] > (limits['memory'] * ONE_MB_BYTE) or
+        svr_resources_usage['disk_bytes'] > (limits['disk'] * ONE_MB_BYTE) or
+        svr_resources_usage['cpu_absolute'] > limits['cpu']):
+        # Suspend this
+        suspend_server(internal_id)
+        return logger.info(f"{name} - {identifier}, Server is overusing resources, for more than 15 minutes!.")
+
 
 
 
