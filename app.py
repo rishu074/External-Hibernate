@@ -38,7 +38,7 @@ def proceed_this_server(
         return logger.info(f"{name} - {identifier}, is not allowing hibernate!")
     
 
-    print(name, identifier, uuid, environment_hibernet)
+    logger.info(f"Proceeding with server {name} - {identifier}")
     svr_stats = get_server_stats(identifier)
 
     node_maintenance = svr_stats['attributes']['is_node_under_maintenance']
@@ -47,8 +47,6 @@ def proceed_this_server(
     is_installing = svr_stats['attributes']['is_installing']
     is_transferring = svr_stats['attributes']['is_transferring']
     internal_id = svr_stats['attributes']['internal_id']
-
-    print(node_maintenance, limits, is_suspended, is_installing, is_transferring)
     
     if node_maintenance:
         return logger.info(f"{name} - {identifier}, Node under maintenance!")
@@ -65,13 +63,12 @@ def proceed_this_server(
     svr_state = svr_usage['attributes']['current_state']
     svr_resources_usage = svr_usage['attributes']['resources']
 
-    print(svr_state, svr_resources_usage, limits)
-
     # Case 1: Server is stuck in starting for more than 15 minutes, kill the server)
     if svr_state == "starting" and svr_resources_usage['uptime'] >= FIFTEEN_MINUTES_IN_MS:
         # Kill the server
         kill_server(identifier)
         return logger.info(f"{name} - {identifier}, Killing server because it took more than 15 minutes to start, Killed server.")
+
     
     # Case 2: Disk overusage, forcedelete server
     if svr_resources_usage['disk_bytes'] > (limits['disk'] * ONE_MB_BYTE):
