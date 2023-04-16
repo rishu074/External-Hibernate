@@ -16,7 +16,7 @@ MINIMUM_UPTIME = 15 * 60000
 ONE_MB_BYTE = 1e+6
 CHECK_AGAIN_AFTER_INTERVAL = 5 * 60
 
-DEV = True
+DEV = False
 
 @logger.catch()
 def initial_start():
@@ -92,8 +92,7 @@ def initial_start():
 
 def proceed_this_server(
         name: str, 
-        identifier: 
-        str, 
+        identifier: str, 
         uuid: str, 
         environment_hibernet: str):
     
@@ -102,7 +101,16 @@ def proceed_this_server(
     
 
     logger.info(f"Proceeding with server {name} - {identifier}")
-    svr_stats = get_server_stats(identifier)
+    try:
+        svr_stats = get_server_stats(identifier)
+    except Exception as e:
+        logger.error(f"{name} - {identifier}, Error while retrieving server stats, {e}, Recheck will be performed after {humanize.naturaldelta(CHECK_AGAIN_AFTER_INTERVAL)}.")
+
+        return proceed_this_server(
+            name,
+            identifier,
+            uuid,
+            environment_hibernet)
 
     node_maintenance = svr_stats['attributes']['is_node_under_maintenance']
     limits = svr_stats['attributes']['limits']
@@ -123,7 +131,26 @@ def proceed_this_server(
         return logger.info(f"{name} - {identifier}, Server Transferring!")
     
 
-    svr_usage = get_resource_usage(identifier)
+    try:
+        svr_usage = get_resource_usage(identifier)
+    except Exception as e:
+        logger.error(f"{name} - {identifier}, Error while retrieving server usage, {e}, Recheck will be performed after {humanize.naturaldelta(CHECK_AGAIN_AFTER_INTERVAL)}.")
+
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {API_KEY}"
+        }
+
+        req = requests.get(f"{PANEL_URL}/api/application/servers/{internal_id}", headers=headers)
+        req_json = req.json()
+
+
+        return proceed_this_server(
+            req_json['attributes']['name'],
+            req_json['attributes']['identifier'],
+            req_json['attributes']['uuid'],
+            req_json['attributes']['container']['environment'].get("HIBERNATE", "true"))
 
     svr_state = svr_usage['attributes']['current_state']
     svr_resources_usage = svr_usage['attributes']['resources']
