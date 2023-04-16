@@ -205,7 +205,7 @@ def proceed_this_server(
         # We have successfully connected websockets, now onwards we have to check the players online
         ws.send(json.dumps({
             "event": "send command", 
-            "args": ["list"]
+            "args": ["minecraft:list"]
         }))
 
         # Get all the console logs
@@ -236,7 +236,7 @@ def proceed_this_server(
             try:
                 players_online = int(cmd_output[cmd_output.find("there are")+10])
             except Exception as err:
-                logger.error(f"{name} - {identifier}, Errored with {err}")
+                logger.error(f"{name} - {identifier}, Errored with {err}, (cmd_output: {cmd_output}) , Recheck will be performed after {humanize.naturaldelta(CHECK_AGAIN_AFTER_INTERVAL)}.")
                 ws.close()
                 return
 
