@@ -5,35 +5,56 @@ import multiprocessing
 import time
 import websocket
 import json
+import humanize
 
 
 API_KEY = "ptla_GMvlbcPve0veHKjTJl6jJajF8oPVWZPkxY3xrjJYmG0"
 CLIENT_API_KEY = "ptlc_0NJ3Mn8ryKR22zJUjv8daeWL1sOT3y2xaqXPUnzYVif"
 PANEL_URL = "https://gp.dnxrg.net"
 
-FIFTEEN_MINUTES_IN_MS = 15 * 60000
+MINIMUM_UPTIME = 15 * 60000
 ONE_MB_BYTE = 1e+6
-FIVE_MINUTES_IN_S = 5 * 60
+CHECK_AGAIN_AFTER_INTERVAL = 5 * 60
+
+DEV = True
 
 @logger.catch()
 def initial_start():
     logger.info("Booting up...")
-    print(read_servers())
+    global CHECK_AGAIN_AFTER_INTERVAL
+    global MINIMUM_UPTIME
 
+    if DEV:
+        logger.trace("Starting development env")
+        _temp_id = int(input("Enter the temperory server id: "))
 
+        # Changes according to tests
+        CHECK_AGAIN_AFTER_INTERVAL = 10
+        MINIMUM_UPTIME = 0
 
+        logger.trace(f"Got temp id {_temp_id}, gathering information from {PANEL_URL}")
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {API_KEY}"
+        }
+        req = requests.get(f"{PANEL_URL}/api/application/servers/{_temp_id}", headers=headers)
+        req_json = req.json()
 
-    return
-    _temp_id = 28
+        logger.trace(f"Calling proceed funtion...")
 
-    headers = {
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {API_KEY}"
-    }
-    req = requests.get(f"{PANEL_URL}/api/application/servers/{_temp_id}", headers=headers)
-    req_json = req.json()
+        proceed_this_server(
+            req_json['attributes']['name'],
+            req_json['attributes']['identifier'],
+            req_json['attributes']['uuid'],
+            req_json['attributes']['container']['environment'].get("HIBERNATE", "true"))
 
+    else:
+        logger.trace("Reading servers")
+        total_servers = read_servers()
+        logger.trace(f"Total servers: {len(total_servers)}")
+
+    # _temp_id = 28
     # psses = []
 
     # for i in range(5):
@@ -50,12 +71,6 @@ def initial_start():
     #     p.join()
     
     # return
-
-    print(proceed_this_server(
-        req_json['attributes']['name'],
-        req_json['attributes']['identifier'],
-        req_json['attributes']['uuid'],
-        req_json['attributes']['container']['environment'].get("HIBERNATE", "true")))
 
 def proceed_this_server(
         name: str, 
@@ -77,6 +92,8 @@ def proceed_this_server(
     is_installing = svr_stats['attributes']['is_installing']
     is_transferring = svr_stats['attributes']['is_transferring']
     internal_id = svr_stats['attributes']['internal_id']
+
+    logger.trace(f"{name} - {identifier}, Got few servers stats, node_maintenance: {node_maintenance}, limits: {limits}, is_suspended: {is_suspended}, is_installing: {is_installing}, is_transferring: {is_transferring}, internal_id: {internal_id}")
     
     if node_maintenance:
         return logger.info(f"{name} - {identifier}, Node under maintenance!")
@@ -92,12 +109,13 @@ def proceed_this_server(
 
     svr_state = svr_usage['attributes']['current_state']
     svr_resources_usage = svr_usage['attributes']['resources']
+    logger.trace(f"{name} - {identifier}, Got svr usages, svr_state: {svr_state}, svr_resources_usage: {svr_resources_usage}")
 
     # Case 1: Server is stuck in starting for more than 15 minutes, kill the server)
-    if svr_state == "starting" and svr_resources_usage['uptime'] >= FIFTEEN_MINUTES_IN_MS:
+    if svr_state == "starting" and svr_resources_usage['uptime'] >= MINIMUM_UPTIME:
         # Kill the server
         kill_server(identifier)
-        return logger.info(f"{name} - {identifier}, Killing server because it took more than 15 minutes to start, Killed server.")
+        return logger.info(f"{name} - {identifier}, Killing server because it took more than {humanize.naturaldelta(MINIMUM_UPTIME / 1000)} to start, Killed server.")
 
     
     # Case 2: Disk overusage, forcedelete server
@@ -106,26 +124,23 @@ def proceed_this_server(
         return logger.info(f"{name} - {identifier}, Server was overusing disk, deleted server.")
 
     # Case 3: Server is overusing resources after 15 minutes of runtime, suspend the server
-    if svr_state == "running" and svr_resources_usage['uptime'] >= FIFTEEN_MINUTES_IN_MS and (
+    if svr_state == "running" and svr_resources_usage['uptime'] >= MINIMUM_UPTIME and (
         svr_resources_usage['memory_bytes'] > (limits['memory'] * ONE_MB_BYTE) or
         svr_resources_usage['disk_bytes'] > (limits['disk'] * ONE_MB_BYTE) or
         svr_resources_usage['cpu_absolute'] > limits['cpu']):
 
         # Suspend the server
         suspend_server(internal_id)
-        return logger.info(f"{name} - {identifier}, Server is overusing resources, for more than 15 minutes, Suspended server.")
-    
-    #Test
-    svr_resources_usage['uptime'] = FIFTEEN_MINUTES_IN_MS + FIFTEEN_MINUTES_IN_MS
+        return logger.info(f"{name} - {identifier}, Server is overusing resources, for more than {humanize.naturaldelta(MINIMUM_UPTIME / 1000)}, Suspended server.")
     
     # Case 4: Server is offline, try again after five minutes
-    if svr_state == "offline" or svr_resources_usage['uptime'] <= FIFTEEN_MINUTES_IN_MS:
-        if svr_resources_usage['uptime'] <= FIFTEEN_MINUTES_IN_MS:
-            logger.info(f"{name} - {identifier}, Server was just started, will check again after five minutes.")
+    if svr_state == "offline" or svr_resources_usage['uptime'] <= MINIMUM_UPTIME:
+        if svr_state == "offline":
+            logger.info(f"{name} - {identifier}, Server found offline, will check again after {humanize.naturaldelta(CHECK_AGAIN_AFTER_INTERVAL)}.")
         else:
-            logger.info(f"{name} - {identifier}, Server found offline, will check again after five minutes.")
+            logger.info(f"{name} - {identifier}, Server was just started, will check again after {humanize.naturaldelta(CHECK_AGAIN_AFTER_INTERVAL)}.")
 
-        time.sleep(10)
+        time.sleep(CHECK_AGAIN_AFTER_INTERVAL)
 
         headers = {
             "Accept": "application/json",
@@ -156,9 +171,11 @@ def proceed_this_server(
 
         req = requests.get(f"{PANEL_URL}/api/client/servers/{identifier}/websocket", headers=headers)
         ws_creds = req.json()
+        logger.trace(f"{name} - {identifier}, Got websocket credentials, {ws_creds['data']['socket']}")
 
         ws = websocket.WebSocket() # type: ignore
         ws.connect(ws_creds['data']['socket'], origin = PANEL_URL)
+        logger.trace(f"{name} - {identifier}, Connected to websocket, {ws_creds['data']['socket']}")
         ws.send(json.dumps({
             "event": "auth", 
             "args": [ws_creds["data"]["token"]]
@@ -193,7 +210,7 @@ def proceed_this_server(
                 await_check_logs = False
 
         if len(no_players_online_arr) == 0:
-            logger.info(f"{name} - {identifier}, Ignoring server because there were players online, will check after five minutes.")
+            logger.info(f"{name} - {identifier}, Ignoring server because there was no output for list command., will check after {humanize.naturaldelta(CHECK_AGAIN_AFTER_INTERVAL)}.")
         else:
             # Check players
             cmd_output = no_players_online_arr[len(no_players_online_arr)-1].lower()
@@ -209,12 +226,15 @@ def proceed_this_server(
             if players_online == 0:
                 # Server should be closed here
                 kill_server(identifier)
-                logger.info(f"{name} - {identifier}, Closed this server having 0 players.")
+                logger.info(f"{name} - {identifier}, Closed this server having 0 players, Recheck will be performed after {humanize.naturaldelta(CHECK_AGAIN_AFTER_INTERVAL)}.")
+            else:
+                logger.info(f"{name} - {identifier}, {players_online} were online in this server, Recheck will be performed after {humanize.naturaldelta(CHECK_AGAIN_AFTER_INTERVAL)}.")
 
 
         ws.close()
 
     check_for_players()
+    time.sleep(CHECK_AGAIN_AFTER_INTERVAL)
     headers = {
         "Accept": "application/json",
         "Content-Type": "application/json",
@@ -299,10 +319,8 @@ def read_servers():
         req_json = req.json()
         servers = servers + req_json['data']
 
-        print(req_json)
-
-        if req_json['meta']['links']['next']:
-            next_link[1] = req_json['meta']['links']['next']
+        if req_json['meta']['pagination']['links'].get('next', 'null') != 'null':
+            next_link[1] = req_json['meta']['pagination']['links']['next']
         else:
             next_link[0] = False
     return servers
@@ -310,5 +328,6 @@ def read_servers():
 if __name__ == '__main__':
     logger.remove(0)
     logger.add(sys.stderr, level="TRACE")
+    logger.trace("Starting initial function")
     initial_start()
     
