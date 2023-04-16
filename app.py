@@ -391,7 +391,7 @@ if __name__ == '__main__':
         main_p = multiprocessing.Process(target=initial_start, args = [])
         main_p.start()
 
-        time.sleep(30)
+        time.sleep(21600)
 
         kill_process(main_p.pid, True)
         logger.info(f"Terminating main process.")
