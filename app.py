@@ -16,7 +16,7 @@ MINIMUM_UPTIME = 15 * 60000
 ONE_MB_BYTE = 1e+6
 CHECK_AGAIN_AFTER_INTERVAL = 5 * 60
 
-DEV = True
+DEV = False
 
 @logger.catch()
 def initial_start():
@@ -168,15 +168,15 @@ def proceed_this_server(
         force_delete_svr(internal_id)
         return logger.info(f"{name} - {identifier}, Server was overusing disk, deleted server.")
 
-    # Case 3: Server is overusing resources after 15 minutes of runtime, suspend the server
+    # Case 3: Server is overusing resources after 15 minutes of runtime, kill the server
     if svr_state == "running" and svr_resources_usage['uptime'] >= MINIMUM_UPTIME and (
         svr_resources_usage['memory_bytes'] > (limits['memory'] * ONE_MB_BYTE) or
         svr_resources_usage['disk_bytes'] > (limits['disk'] * ONE_MB_BYTE) or
         svr_resources_usage['cpu_absolute'] > limits['cpu']):
 
-        # Suspend the server
-        suspend_server(internal_id)
-        return logger.info(f"{name} - {identifier}, Server is overusing resources, for more than {humanize.naturaldelta(MINIMUM_UPTIME / 1000)}, Suspended server.")
+        # Kill the server
+        kill_server(identifier)
+        return logger.info(f"{name} - {identifier}, Server is overusing resources, for more than {humanize.naturaldelta(MINIMUM_UPTIME / 1000)}, Killed server.")
     
     # Case 4: Server is offline, try again after five minutes
     if svr_state == "offline" or svr_resources_usage['uptime'] <= MINIMUM_UPTIME:
