@@ -4,6 +4,7 @@ import sys
 import multiprocessing
 import time
 import websocket
+import json
 
 
 API_KEY = "ptla_GMvlbcPve0veHKjTJl6jJajF8oPVWZPkxY3xrjJYmG0"
@@ -146,11 +147,22 @@ def proceed_this_server(
 
     req = requests.get(f"{PANEL_URL}/api/client/servers/{identifier}/websocket", headers=headers)
     ws_creds = req.json()
-    print(ws_creds)
 
-    ws = websocket.WebSocket(socket = ws_creds['data']['socket']) # type: ignore
-    # websocket.connect()
-    print(ws.status)
+    ws = websocket.WebSocket() # type: ignore
+    ws.connect(ws_creds['data']['socket'], origin = PANEL_URL)
+    ws.send(json.dumps({
+        "event": "auth", 
+        "args": [ws_creds["data"]["token"]]
+    }))
+
+    msg = ws.recv()
+    logger.info(f"{name} - {identifier}, Console connected and auth state: {msg}")  
+
+    # We have successfully connected websockets, now onwards we have to check the players online
+    ws.send(json.dumps({
+        "event": "send command", 
+        "args": ["list"]
+    }))
 
     ws.close()
 
