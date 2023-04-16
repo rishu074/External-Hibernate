@@ -18,6 +18,12 @@ FIVE_MINUTES_IN_S = 5 * 60
 @logger.catch()
 def initial_start():
     logger.info("Booting up...")
+    print(read_servers())
+
+
+
+
+    return
     _temp_id = 28
 
     headers = {
@@ -209,6 +215,21 @@ def proceed_this_server(
         ws.close()
 
     check_for_players()
+    headers = {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {API_KEY}"
+    }
+
+    req = requests.get(f"{PANEL_URL}/api/application/servers/{internal_id}", headers=headers)
+    req_json = req.json()
+
+
+    return proceed_this_server(
+        req_json['attributes']['name'],
+        req_json['attributes']['identifier'],
+        req_json['attributes']['uuid'],
+        req_json['attributes']['container']['environment'].get("HIBERNATE", "true"))
 
 
 
@@ -270,9 +291,21 @@ def read_servers():
         "Content-Type": "application/json",
         "Authorization": f"Bearer {API_KEY}"
     }
+    next_link = [True, f"{PANEL_URL}/api/application/servers"]
+    servers = []
 
-    req = requests.get(f"{PANEL_URL}/api/application/servers", headers=headers)
-    return req.json()
+    while next_link[0]:
+        req = requests.get(next_link[1], headers=headers)
+        req_json = req.json()
+        servers = servers + req_json['data']
+
+        print(req_json)
+
+        if req_json['meta']['links']['next']:
+            next_link[1] = req_json['meta']['links']['next']
+        else:
+            next_link[0] = False
+    return servers
 
 if __name__ == '__main__':
     logger.remove(0)
