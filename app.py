@@ -30,7 +30,7 @@ def initial_start():
 
         # Changes according to tests
         CHECK_AGAIN_AFTER_INTERVAL = 10
-        MINIMUM_UPTIME = 60000 * 2
+        MINIMUM_UPTIME = 0
 
         logger.trace(f"Got temp id {_temp_id}, gathering information from {PANEL_URL}")
         headers = {
@@ -53,6 +53,24 @@ def initial_start():
         logger.trace("Reading servers")
         total_servers = read_servers()
         logger.trace(f"Total servers: {len(total_servers)}")
+
+        processes = []
+
+        for svr in total_servers:
+            p = multiprocessing.Process(target=proceed_this_server, args=[
+                svr['attributes']['name'],
+                svr['attributes']['identifier'],
+                svr['attributes']['uuid'],
+                svr['attributes']['container']['environment'].get("HIBERNATE", "true")])
+            
+            processes.append(p)
+
+        logger.info(f"About to start {len(processes)} processes for {len(total_servers)} servers!")
+        for pr in processes:
+            pr.start()
+
+        for pr in processes:
+            pr.join()
 
     # _temp_id = 28
     # psses = []
@@ -214,7 +232,6 @@ def proceed_this_server(
         else:
             # Check players
             cmd_output = no_players_online_arr[len(no_players_online_arr)-1].lower()
-            cmd_output = "[05:27:47 info]: there are 0 of a max of 20 players online:"
             
             try:
                 players_online = int(cmd_output[cmd_output.find("there are")+10])
@@ -228,7 +245,7 @@ def proceed_this_server(
                 kill_server(identifier)
                 logger.info(f"{name} - {identifier}, Closed this server having 0 players, Recheck will be performed after {humanize.naturaldelta(CHECK_AGAIN_AFTER_INTERVAL)}.")
             else:
-                logger.info(f"{name} - {identifier}, {players_online} were online in this server, Recheck will be performed after {humanize.naturaldelta(CHECK_AGAIN_AFTER_INTERVAL)}.")
+                logger.info(f"{name} - {identifier}, {players_online} players were online in this server, Recheck will be performed after {humanize.naturaldelta(CHECK_AGAIN_AFTER_INTERVAL)}.")
 
 
         ws.close()
