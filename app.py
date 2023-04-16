@@ -16,7 +16,7 @@ MINIMUM_UPTIME = 15 * 60000
 ONE_MB_BYTE = 1e+6
 CHECK_AGAIN_AFTER_INTERVAL = 5 * 60
 
-DEV = False
+DEV = True
 
 @logger.catch()
 def initial_start():
@@ -30,7 +30,7 @@ def initial_start():
 
         # Changes according to tests
         CHECK_AGAIN_AFTER_INTERVAL = 10
-        MINIMUM_UPTIME = 0
+        MINIMUM_UPTIME = 60000 * 2
 
         logger.trace(f"Got temp id {_temp_id}, gathering information from {PANEL_URL}")
         headers = {
