@@ -6,6 +6,7 @@ import time
 import websocket
 import json
 import humanize
+import psutil
 
 
 API_KEY = "ptla_GMvlbcPve0veHKjTJl6jJajF8oPVWZPkxY3xrjJYmG0"
@@ -369,9 +370,32 @@ def read_servers():
             next_link[0] = False
     return servers
 
+def kill_process(pid: int | None, first: bool):
+    if not psutil.pid_exists(pid): # type: ignore
+        return
+    parent = psutil.Process(pid)
+
+    for child in parent.children(True):
+        kill_process(child.pid, False)
+    
+    if not first and psutil.pid_exists(pid): # type: ignore
+        logger.info(f"Killed process {pid}.")
+        parent.terminate()
+
 if __name__ == '__main__':
     logger.remove(0)
-    logger.add(sys.stderr, level="TRACE")
+    logger.add(sys.stderr, level="INFO")
     logger.trace("Starting initial function")
-    initial_start()
+
+    while True:
+        main_p = multiprocessing.Process(target=initial_start, args = [])
+        main_p.start()
+
+        time.sleep(30)
+
+        kill_process(main_p.pid, True)
+        logger.info(f"Terminating main process.")
+
+        main_p.terminate()
+    # initial_start()
     
