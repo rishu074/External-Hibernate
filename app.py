@@ -30,7 +30,7 @@ def initial_start():
 
         # Changes according to tests
         CHECK_AGAIN_AFTER_INTERVAL = 10
-        MINIMUM_UPTIME = 0
+        MINIMUM_UPTIME = 60000 * 2
 
         logger.trace(f"Got temp id {_temp_id}, gathering information from {PANEL_URL}")
         headers = {
