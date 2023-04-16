@@ -15,6 +15,7 @@ FIFTEEN_MINUTES_IN_MS = 15 * 60000
 ONE_MB_BYTE = 1e+6
 FIVE_MINUTES_IN_S = 5 * 60
 
+@logger.catch()
 def initial_start():
     logger.info("Booting up...")
     _temp_id = 28
@@ -108,6 +109,7 @@ def proceed_this_server(
         suspend_server(internal_id)
         return logger.info(f"{name} - {identifier}, Server is overusing resources, for more than 15 minutes, Suspended server.")
     
+    #Test
     svr_resources_usage['uptime'] = FIFTEEN_MINUTES_IN_MS + FIFTEEN_MINUTES_IN_MS
     
     # Case 4: Server is offline, try again after five minutes
@@ -139,32 +141,74 @@ def proceed_this_server(
     # Last case: Server is online, proceed with websocket things
 
     # Get webscoket url and token
-    headers = {
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {CLIENT_API_KEY}"
-    }
+    def check_for_players():
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {CLIENT_API_KEY}"
+        }
 
-    req = requests.get(f"{PANEL_URL}/api/client/servers/{identifier}/websocket", headers=headers)
-    ws_creds = req.json()
+        req = requests.get(f"{PANEL_URL}/api/client/servers/{identifier}/websocket", headers=headers)
+        ws_creds = req.json()
 
-    ws = websocket.WebSocket() # type: ignore
-    ws.connect(ws_creds['data']['socket'], origin = PANEL_URL)
-    ws.send(json.dumps({
-        "event": "auth", 
-        "args": [ws_creds["data"]["token"]]
-    }))
+        ws = websocket.WebSocket() # type: ignore
+        ws.connect(ws_creds['data']['socket'], origin = PANEL_URL)
+        ws.send(json.dumps({
+            "event": "auth", 
+            "args": [ws_creds["data"]["token"]]
+        }))
 
-    msg = ws.recv()
-    logger.info(f"{name} - {identifier}, Console connected and auth state: {msg}")  
+        msg = ws.recv()
+        logger.info(f"{name} - {identifier}, Console connected and auth state: {msg}")  
 
-    # We have successfully connected websockets, now onwards we have to check the players online
-    ws.send(json.dumps({
-        "event": "send command", 
-        "args": ["list"]
-    }))
+        # We have successfully connected websockets, now onwards we have to check the players online
+        ws.send(json.dumps({
+            "event": "send command", 
+            "args": ["list"]
+        }))
 
-    ws.close()
+        # Get all the console logs
+        ws.send(json.dumps({
+            "event": "send logs", 
+            "args": [None]
+        }))
+        await_check_logs = True
+        no_players_online_arr = []
+
+        while await_check_logs:
+            msg = json.loads(ws.recv())
+
+
+            if msg['event'] == "console output" and msg['args'][0].lower().find('players online') != -1: # type: ignore
+                # print(msg)
+                no_players_online_arr.append(msg['args'][0]) # type: ignore
+
+            if msg['event'] == "stats": # type: ignore
+                await_check_logs = False
+
+        if len(no_players_online_arr) == 0:
+            logger.info(f"{name} - {identifier}, Ignoring server because there were players online, will check after five minutes.")
+        else:
+            # Check players
+            cmd_output = no_players_online_arr[len(no_players_online_arr)-1].lower()
+            cmd_output = "[05:27:47 info]: there are 0 of a max of 20 players online:"
+            
+            try:
+                players_online = int(cmd_output[cmd_output.find("there are")+10])
+            except Exception as err:
+                logger.error(f"{name} - {identifier}, Errored with {err}")
+                ws.close()
+                return
+
+            if players_online == 0:
+                # Server should be closed here
+                kill_server(identifier)
+                logger.info(f"{name} - {identifier}, Closed this server having 0 players.")
+
+
+        ws.close()
+
+    check_for_players()
 
 
 
